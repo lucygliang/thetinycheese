@@ -1,0 +1,98 @@
+#include "rgb_lcd.h"
+#include <Servo.h>
+
+rgb_lcd lcd;
+const int colorR = 255;
+const int colorG = 0;
+const int colorB = 0;
+
+const int pinTemp = A0;  // pin of temperature sensor
+const int pinCandle = 6; // bottom, swaps heat source with strainer
+const int pinLemon = 3; // top, dumps lemon juice
+const int pinCheese = 5; // middle, dumps cheese to strainer
+const int pinButton = 2; // manually rotate and reset servos
+
+const int minRotation = 0;
+const int maxRotation = 180;
+
+Servo servoCandle;
+Servo servoLemon;
+Servo servoCheese;
+
+double TempC, TempF, Setpoint;
+int B = 3975; // B value of the thermistor
+float resistance;
+
+boolean rotated;
+boolean pinButtonWasPressed;
+
+void setup()
+{
+    Serial.begin(9600);
+    pinMode(pinButton, INPUT);
+    servoCandle.attach(pinCandle);
+    servoLemon.attach(pinLemon);
+    servoCheese.attach(pinCheese);
+    Setpoint = 180; // temp needed to produce milk coagulation
+    rotated = false;
+    pinButtonWasPressed = false;
+    delay(1000);
+
+    lcd.begin(16, 2);
+    lcd.setRGB(colorR, colorG, colorB);
+    lcd.print("#TheTinyCheese");
+}
+
+void Unrotate()
+{
+  if (rotated)
+  {
+    servoCandle.write(minRotation);
+    servoLemon.write(minRotation);
+    servoCheese.write(minRotation);
+    rotated = false;
+  }
+}
+
+void Rotate()
+{
+  if (!rotated)
+  {
+    delay(500);
+    servoCandle.write(maxRotation);
+    delay(1000);
+    servoLemon.write(maxRotation);
+    delay(1000);
+    servoCheese.write(maxRotation);
+    rotated = true;
+  }
+}
+
+void loop()
+{
+    int val = analogRead(pinTemp); // get analog value
+    resistance = (float)(1023-val)*10000/val; // get resistance
+    TempC = 1/(log(resistance/10000)/B+1/298.15)-273.15; // calc temperature
+    TempF = (TempC * 9.0)/5.0+32.0;
+
+    lcd.setCursor(0, 1);
+    lcd.print(TempF);
+
+    delay(1000);
+
+    if (digitalRead(pinButton)) {
+      delay(500);
+      Rotate();
+      pinButtonWasPressed = true;
+    }
+    else if (pinButtonWasPressed)
+    {
+      delay(500);
+      pinButtonWasPressed = false;
+      Unrotate();
+    }
+    else if (TempF > Setpoint) {
+      delay(5000);
+      Rotate();
+    }
+}
